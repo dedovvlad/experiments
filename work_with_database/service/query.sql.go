@@ -21,9 +21,9 @@ func (q *Queries) getPassportData(ctx context.Context, id string) (Passport, err
 	return i, err
 }
 
-const insertPassportData = `-- name: insertPassportData :one
+const insertPassportData = `-- name: insertPassportData :exec
 INSERT INTO passports (id, series, number)
-VALUES ($1, $2, $3) RETURNING id
+VALUES ($1, $2, $3)
 `
 
 type insertPassportDataParams struct {
@@ -32,9 +32,7 @@ type insertPassportDataParams struct {
 	Number string
 }
 
-func (q *Queries) insertPassportData(ctx context.Context, arg insertPassportDataParams) (string, error) {
-	row := q.queryRow(ctx, q.insertPassportDataStmt, insertPassportData, arg.ID, arg.Series, arg.Number)
-	var id string
-	err := row.Scan(&id)
-	return id, err
+func (q *Queries) insertPassportData(ctx context.Context, arg insertPassportDataParams) error {
+	_, err := q.exec(ctx, q.insertPassportDataStmt, insertPassportData, arg.ID, arg.Series, arg.Number)
+	return err
 }

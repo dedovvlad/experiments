@@ -21,57 +21,54 @@ func NewService(db *sql.DB) *Service {
 	}
 }
 
-func (s *Service) SetNumbersOne(ctx context.Context, series, number string) (bool, error) {
-
+func (s *Service) SetNumbersOne(ctx context.Context, series, number string) error {
 	id := uuid.New().String()
 
-	_, err := s.q.insertPassportData(ctx, insertPassportDataParams{
+	err := s.q.insertPassportData(ctx, insertPassportDataParams{
 		ID:     id,
 		Series: series,
 		Number: number,
 	})
 	if err != nil {
-		return false, err
+		return err
 	}
-	return true, nil
+	return nil
 }
 
-func (s *Service) SetNumbersMany(ctx context.Context, series, number string) (bool, error) {
-
-	id := uuid.New().String()
-
-	tx, err := s.db.BeginTx(ctx, nil)
-
-	q := s.q.WithTx(tx)
-
-	_, err = q.insertPassportData(ctx, insertPassportDataParams{
-		ID:     id,
-		Series: series,
-		Number: number,
-	})
+func (s *Service) CallPrepare(ctx context.Context) (*sql.Stmt, error) {
+	p, err := Prepare(ctx, s.db)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return true, tx.Commit()
+
+	return p.insertPassportDataStmt, nil
 }
 
-func (s *Service) SetNumbersChunk(ctx context.Context, series, number string) (bool, error) {
-
+func (s *Service) SetNumbersPrepare(ctx context.Context, stmt *sql.Stmt, series, number string) error {
 	id := uuid.New().String()
+	_, err := stmt.ExecContext(ctx, id, series, number)
+	if err != nil {
+		return err
+	}
 
+	return nil
+}
+
+func (s *Service) SetNumbersChunk(ctx context.Context, params []*models.Passport) error {
 	tx, err := s.db.BeginTx(ctx, nil)
-
 	q := s.q.WithTx(tx)
 
-	_, err = q.insertPassportData(ctx, insertPassportDataParams{
-		ID:     id,
-		Series: series,
-		Number: number,
-	})
-	if err != nil {
-		return false, err
+	for _, v := range params {
+		err = q.insertPassportData(ctx, insertPassportDataParams{
+			ID:     v.ID,
+			Series: v.Series,
+			Number: v.Number,
+		})
+		if err != nil {
+			return err
+		}
 	}
-	return true, tx.Commit()
+	return tx.Commit()
 }
 
 func (s *Service) GetNumber(ctx context.Context, id string) (models.Passport, error) {
