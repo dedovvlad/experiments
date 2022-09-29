@@ -28,10 +28,10 @@ func main() {
 	log.Printf("<<< [one] >>> Total time: %f", time.Since(start).Seconds())
 
 	start = time.Now()
-	action.AddPassportsMany(cfg.FilePath)
-	log.Printf("<<< [many] >>> Total time: %f", time.Since(start).Seconds())
+	action.AddPassportsPrepare(cfg.FilePath)
+	log.Printf("<<< [prepare] >>> Total time: %f", time.Since(start).Seconds())
 
 	start = time.Now()
-	action.AddPassportsChunk(cfg.FilePath, 3)
+	action.AddPassportsChunk(cfg.FilePath, 6)
 	log.Printf("<<< [chunk] >>> Total time: %f", time.Since(start).Seconds())
 }

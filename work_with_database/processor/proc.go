@@ -2,9 +2,13 @@ package processor
 
 import (
 	"context"
+	"database/sql"
+	"encoding/csv"
+	"io"
 	"log"
-	"math"
-	"sync"
+	"os"
+
+	"github.com/google/uuid"
 
 	"lerning/work_with_database/models"
 )
@@ -12,19 +16,20 @@ import (
 type (
 	service interface {
 		GetNumber(ctx context.Context, id string) (models.Passport, error)
-		SetNumbersOne(ctx context.Context, series, number string) (bool, error)
-		SetNumbersMany(ctx context.Context, series, number string) (bool, error)
-		SetNumbersChunk(ctx context.Context, series, number string) (bool, error)
+		SetNumbersOne(ctx context.Context, series, number string) error
+		CallPrepare(ctx context.Context) (*sql.Stmt, error)
+		SetNumbersPrepare(ctx context.Context, stmt *sql.Stmt, series, number string) error
+		SetNumbersChunk(ctx context.Context, params []*models.Passport) error
 	}
 	Proc struct {
 		service service
 	}
 )
 
-type Iter struct {
-	Start int
-	End   int
-}
+const (
+	series = iota
+	number
+)
 
 func NewProc(s service) *Proc {
 	return &Proc{
@@ -32,80 +37,124 @@ func NewProc(s service) *Proc {
 	}
 }
 
-func message(count int) {
-	log.Printf("total passport numbers in file: %d", count)
-	log.Printf("Set passport numbers done")
-}
-
 func (p *Proc) AddPassportsOne(filePath string) {
-	ctx := context.Background()
-
-	data, count, _ := Parser(filePath, 0, 0)
-
-	for _, v := range data {
-		_, err := p.service.SetNumbersOne(ctx, v.Series, v.Number)
-		if err != nil {
-		}
-	}
-	message(count)
-}
-
-func (p *Proc) AddPassportsMany(filePath string) {
-	ctx := context.Background()
-
-	data, count, _ := Parser(filePath, 0, 0)
-
-	for _, v := range data {
-		_, err := p.service.SetNumbersMany(ctx, v.Series, v.Number)
-		if err != nil {
-		}
-	}
-	message(count)
-}
-
-func (p *Proc) AddPassportsChunk(filePath string, chunk int) {
 
 	ctx := context.Background()
-	defer ctx.Done()
 
-	data, count, err := Parser(filePath, 0, 0)
+	file, err := os.Open(filePath)
 	if err != nil {
-		log.Print(err)
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	rider := csv.NewReader(file)
+	log.Printf("Set passport numbers start")
+	var count int
+	for {
+		rows, err := rider.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = p.service.SetNumbersOne(ctx, rows[series], rows[number])
+		if err != nil {
+			log.Fatal(err)
+		}
+		count++
 	}
 
-	var wg sync.WaitGroup
-
-	for _, i := range makeIterationList(chunk, count) {
-		wg.Add(1)
-		go func(iter *Iter) {
-			for _, v := range data[iter.Start:iter.End] {
-				_, err = p.service.SetNumbersMany(ctx, v.Series, v.Number)
-			}
-			wg.Done()
-			log.Printf("Set data till: %d untill: %d", iter.Start, iter.End)
-		}(i)
-	}
-	wg.Wait()
-	message(count)
-
+	log.Printf("Total: %d", count)
+	log.Print("Set passport numbers done")
 }
 
-func makeIterationList(chunk, count int) []*Iter {
+func (p *Proc) AddPassportsPrepare(filePath string) {
 
-	iterArr := make([]*Iter, int(math.Ceil(float64(count)/float64(chunk))))
+	ctx := context.Background()
 
-	start := 0
-	for i := 0; i < len(iterArr); i++ {
-		iterArr[i] = &Iter{
-			Start: start,
-			End:   start + chunk,
+	stmt, err := p.service.CallPrepare(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer stmt.Close()
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	rider := csv.NewReader(file)
+	log.Printf("Set passport numbers start")
+	var count int
+	for {
+		rows, err := rider.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
 		}
 
-		if start += chunk; start > count {
-			iterArr[i].End = count
+		err = p.service.SetNumbersPrepare(ctx, stmt, rows[series], rows[number])
+		if err != nil {
+			log.Fatal(err)
 		}
+		count++
 	}
 
-	log.Printf("Create %d chunk", len(iterArr))
-	return iterArr
+	log.Printf("Total: %d", count)
+	log.Print("Set passport numbers done")
+}
+
+func (p *Proc) AddPassportsChunk(filePath string, volume int) {
+	ctx := context.Background()
+
+	file, err := os.Open(filePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	rider := csv.NewReader(file)
+	buffer := make([]*models.Passport, 0, volume)
+
+	var count, total int
+
+	insertToDB := func(rows []*models.Passport) {
+		err := p.service.SetNumbersChunk(ctx, rows)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("Added %d passports number", total)
+	}
+
+	log.Printf("Set passport numbers start")
+
+	for {
+		rows, err := rider.Read()
+		if err == io.EOF {
+			insertToDB(buffer)
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		if count == volume {
+			insertToDB(buffer)
+			buffer = buffer[:0]
+			count = 0
+		}
+		buffer = append(buffer, &models.Passport{
+			ID:     uuid.New().String(),
+			Series: rows[series],
+			Number: rows[number],
+		})
+		count++
+		total++
+	}
+
+	log.Print("Set passport numbers done")
 }
