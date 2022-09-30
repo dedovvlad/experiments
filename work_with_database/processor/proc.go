@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/csv"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -37,13 +38,13 @@ func NewProc(s service) *Proc {
 	}
 }
 
-func (p *Proc) AddPassportsOne(filePath string) {
+func (p *Proc) AddPassportsOne(filePath string) error {
 
 	ctx := context.Background()
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Print(err)
+		return fmt.Errorf("file can't open: %s", err)
 	}
 	defer file.Close()
 
@@ -56,7 +57,7 @@ func (p *Proc) AddPassportsOne(filePath string) {
 			break
 		}
 		if err != nil {
-			log.Print(err)
+			return fmt.Errorf("data has problems: %s", err)
 		}
 
 		err = p.service.CreateNumbersOne(ctx, rows[series], rows[number])
@@ -68,21 +69,22 @@ func (p *Proc) AddPassportsOne(filePath string) {
 
 	log.Printf("Total: %d", count)
 	log.Print("Set passport numbers done")
+	return nil
 }
 
-func (p *Proc) AddPassportsPrepare(filePath string) {
+func (p *Proc) AddPassportsPrepare(filePath string) error {
 
 	ctx := context.Background()
 
 	stmt, err := p.service.CallPrepare(ctx)
 	if err != nil {
-		log.Print(err)
+		return fmt.Errorf("'prepare' can't be do: %s", err)
 	}
 	defer stmt.Close()
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Print(err)
+		return fmt.Errorf("data has some problems: %s", err)
 	}
 	defer file.Close()
 
@@ -95,7 +97,7 @@ func (p *Proc) AddPassportsPrepare(filePath string) {
 			break
 		}
 		if err != nil {
-			log.Print(err)
+			return fmt.Errorf("data has some problems: %s", err)
 		}
 
 		err = p.service.CreateNumbersPrepare(ctx, stmt, rows[series], rows[number])
@@ -107,14 +109,15 @@ func (p *Proc) AddPassportsPrepare(filePath string) {
 
 	log.Printf("Total: %d", count)
 	log.Print("Set passport numbers done")
+	return nil
 }
 
-func (p *Proc) AddPassportsChunk(filePath string, volume int) {
+func (p *Proc) AddPassportsChunk(filePath string, volume int) error {
 	ctx := context.Background()
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Print(err)
+		return fmt.Errorf("file can't open: %s", err)
 	}
 	defer file.Close()
 
@@ -140,7 +143,7 @@ func (p *Proc) AddPassportsChunk(filePath string, volume int) {
 			break
 		}
 		if err != nil {
-			log.Print(err)
+			return fmt.Errorf("data has some problems: %s", err)
 		}
 		if count == volume {
 			insertToDB(buffer)
@@ -157,4 +160,5 @@ func (p *Proc) AddPassportsChunk(filePath string, volume int) {
 	}
 
 	log.Print("Set passport numbers done")
+	return nil
 }

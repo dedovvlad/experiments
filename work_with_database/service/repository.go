@@ -58,8 +58,6 @@ func (s *Service) CreateNumbersPrepare(ctx context.Context, stmt *sql.Stmt, seri
 }
 
 func (s *Service) CreateNumbersChunk(ctx context.Context, params []*models.Passport) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-
 	paramsString := make([]string, 0, len(params))
 	for _, param := range params {
 		paramsString = append(paramsString, fmt.Sprintf("('%s', '%s', '%s')", param.ID, param.Series, param.Number))
@@ -67,11 +65,11 @@ func (s *Service) CreateNumbersChunk(ctx context.Context, params []*models.Passp
 
 	insert := fmt.Sprintf(`INSERT INTO passports (id, series, number) VALUES %s`, strings.Join(paramsString, ","))
 
-	_, err = tx.QueryContext(ctx, insert)
+	_, err := s.q.exec(ctx, s.q.insertPassportDataStmt, insert)
 	if err != nil {
 		log.Print(err)
 	}
-	return tx.Commit()
+	return nil
 }
 
 func (s *Service) Number(ctx context.Context, id string) (models.Passport, error) {
