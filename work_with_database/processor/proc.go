@@ -15,11 +15,11 @@ import (
 
 type (
 	service interface {
-		GetNumber(ctx context.Context, id string) (models.Passport, error)
-		SetNumbersOne(ctx context.Context, series, number string) error
+		Number(ctx context.Context, id string) (models.Passport, error)
+		CreateNumbersOne(ctx context.Context, series, number string) error
 		CallPrepare(ctx context.Context) (*sql.Stmt, error)
-		SetNumbersPrepare(ctx context.Context, stmt *sql.Stmt, series, number string) error
-		SetNumbersChunk(ctx context.Context, params []*models.Passport) error
+		CreateNumbersPrepare(ctx context.Context, stmt *sql.Stmt, series, number string) error
+		CreateNumbersChunk(ctx context.Context, params []*models.Passport) error
 	}
 	Proc struct {
 		service service
@@ -43,7 +43,7 @@ func (p *Proc) AddPassportsOne(filePath string) {
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 	defer file.Close()
 
@@ -56,12 +56,12 @@ func (p *Proc) AddPassportsOne(filePath string) {
 			break
 		}
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 
-		err = p.service.SetNumbersOne(ctx, rows[series], rows[number])
+		err = p.service.CreateNumbersOne(ctx, rows[series], rows[number])
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 		count++
 	}
@@ -76,13 +76,13 @@ func (p *Proc) AddPassportsPrepare(filePath string) {
 
 	stmt, err := p.service.CallPrepare(ctx)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 	defer stmt.Close()
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 	defer file.Close()
 
@@ -95,12 +95,12 @@ func (p *Proc) AddPassportsPrepare(filePath string) {
 			break
 		}
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 
-		err = p.service.SetNumbersPrepare(ctx, stmt, rows[series], rows[number])
+		err = p.service.CreateNumbersPrepare(ctx, stmt, rows[series], rows[number])
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 		count++
 	}
@@ -114,7 +114,7 @@ func (p *Proc) AddPassportsChunk(filePath string, volume int) {
 
 	file, err := os.Open(filePath)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 	defer file.Close()
 
@@ -124,9 +124,9 @@ func (p *Proc) AddPassportsChunk(filePath string, volume int) {
 	var count, total int
 
 	insertToDB := func(rows []*models.Passport) {
-		err := p.service.SetNumbersChunk(ctx, rows)
+		err := p.service.CreateNumbersChunk(ctx, rows)
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 		log.Printf("Added %d passports number", total)
 	}
@@ -140,7 +140,7 @@ func (p *Proc) AddPassportsChunk(filePath string, volume int) {
 			break
 		}
 		if err != nil {
-			log.Fatal(err)
+			log.Print(err)
 		}
 		if count == volume {
 			insertToDB(buffer)

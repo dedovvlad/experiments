@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"log"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -21,7 +24,7 @@ func NewService(db *sql.DB) *Service {
 	}
 }
 
-func (s *Service) SetNumbersOne(ctx context.Context, series, number string) error {
+func (s *Service) CreateNumbersOne(ctx context.Context, series, number string) error {
 	id := uuid.New().String()
 
 	err := s.q.insertPassportData(ctx, insertPassportDataParams{
@@ -44,7 +47,7 @@ func (s *Service) CallPrepare(ctx context.Context) (*sql.Stmt, error) {
 	return p.insertPassportDataStmt, nil
 }
 
-func (s *Service) SetNumbersPrepare(ctx context.Context, stmt *sql.Stmt, series, number string) error {
+func (s *Service) CreateNumbersPrepare(ctx context.Context, stmt *sql.Stmt, series, number string) error {
 	id := uuid.New().String()
 	_, err := stmt.ExecContext(ctx, id, series, number)
 	if err != nil {
@@ -54,24 +57,24 @@ func (s *Service) SetNumbersPrepare(ctx context.Context, stmt *sql.Stmt, series,
 	return nil
 }
 
-func (s *Service) SetNumbersChunk(ctx context.Context, params []*models.Passport) error {
+func (s *Service) CreateNumbersChunk(ctx context.Context, params []*models.Passport) error {
 	tx, err := s.db.BeginTx(ctx, nil)
-	q := s.q.WithTx(tx)
 
-	for _, v := range params {
-		err = q.insertPassportData(ctx, insertPassportDataParams{
-			ID:     v.ID,
-			Series: v.Series,
-			Number: v.Number,
-		})
-		if err != nil {
-			return err
-		}
+	paramsString := make([]string, 0, len(params))
+	for _, param := range params {
+		paramsString = append(paramsString, fmt.Sprintf("('%s', '%s', '%s')", param.ID, param.Series, param.Number))
+	}
+
+	insert := fmt.Sprintf(`INSERT INTO passports (id, series, number) VALUES %s`, strings.Join(paramsString, ","))
+
+	_, err = tx.QueryContext(ctx, insert)
+	if err != nil {
+		log.Print(err)
 	}
 	return tx.Commit()
 }
 
-func (s *Service) GetNumber(ctx context.Context, id string) (models.Passport, error) {
+func (s *Service) Number(ctx context.Context, id string) (models.Passport, error) {
 	dto, err := s.q.getPassportData(ctx, id)
 	if err != nil {
 		return models.Passport{}, err

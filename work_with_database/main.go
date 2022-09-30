@@ -32,6 +32,6 @@ func main() {
 	log.Printf("<<< [prepare] >>> Total time: %f", time.Since(start).Seconds())
 
 	start = time.Now()
-	action.AddPassportsChunk(cfg.FilePath, 6)
+	action.AddPassportsChunk(cfg.FilePath, 100)
 	log.Printf("<<< [chunk] >>> Total time: %f", time.Since(start).Seconds())
 }
