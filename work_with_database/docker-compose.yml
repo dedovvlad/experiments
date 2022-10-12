@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  db:
+    container_name: db
+    image: postgres:13.4
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  init:
+    container_name: init
+    build:
+      context: .
+    command: |
+      sh -c '
+        ./wait_db.sh;
+        echo "migrations start";
+        goose -dir db/schemas postgres "$${POSTGRES_PG}" up;
+        echo "migrations done";
+        '
+    env_file:
+      - ${PWD}/.env
+    restart: "no"
+    depends_on:
+      - db
+
+volumes:
+  db-data:
+    driver: local
